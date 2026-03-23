@@ -6,6 +6,7 @@ enum MemoColor: String, Codable, CaseIterable, Identifiable {
     case red
     case blue
     case green
+    case yellow
 
     var id: String {
         rawValue
@@ -21,6 +22,8 @@ enum MemoColor: String, Codable, CaseIterable, Identifiable {
             return "파랑"
         case .green:
             return "초록"
+        case .yellow:
+            return "노랑"
         }
     }
 
@@ -34,6 +37,8 @@ enum MemoColor: String, Codable, CaseIterable, Identifiable {
             return .systemBlue
         case .green:
             return .systemGreen
+        case .yellow:
+            return NSColor(srgbRed: 0.97, green: 0.82, blue: 0.18, alpha: 1.0)
         }
     }
 

@@ -1,9 +1,15 @@
 import Foundation
 import SwiftUI
 
+struct MemoColorSelectionRequest: Identifiable, Equatable {
+    let id = UUID()
+    let color: MemoColor
+}
+
 enum NotesAlert: Identifiable, Equatable {
     case discardChanges
     case deleteMemo
+    case deleteAllMemos
     case error(message: String)
 
     var id: String {
@@ -12,6 +18,8 @@ enum NotesAlert: Identifiable, Equatable {
             return "discardChanges"
         case .deleteMemo:
             return "deleteMemo"
+        case .deleteAllMemos:
+            return "deleteAllMemos"
         case .error(let message):
             return "error-\(message)"
         }
@@ -25,6 +33,7 @@ final class NotesViewModel: ObservableObject {
     @Published var draft: MemoDraft = .empty
     @Published var focusToken = UUID()
     @Published var activeAlert: NotesAlert?
+    @Published var colorSelectionRequest: MemoColorSelectionRequest?
 
     private let store: NotesStore
     private var originalDraft: MemoDraft = .empty
@@ -38,22 +47,21 @@ final class NotesViewModel: ObservableObject {
         !draft.trimmedContent.isEmpty
     }
 
+    var hasNotes: Bool {
+        !notes.isEmpty
+    }
+
     var isEditingExistingMemo: Bool {
         draft.memoID != nil
     }
 
     var isDirty: Bool {
-        draft.content != originalDraft.content || draft.color != originalDraft.color
+        draft.styledText != originalDraft.styledText
     }
 
     func handlePopoverOpened() {
         activeAlert = nil
-
-        if notes.isEmpty {
-            prepareEmptyComposer()
-        } else {
-            route = .memoList
-        }
+        openDefaultComposer()
     }
 
     func startNewMemo() {
@@ -68,6 +76,14 @@ final class NotesViewModel: ObservableObject {
         originalDraft = draft
         route = .editor(memoID: memo.id)
         requestFocus()
+    }
+
+    func openSettings() {
+        route = .settings
+    }
+
+    func closeSettings() {
+        route = .memoList
     }
 
     func requestBack(closePopover: () -> Void) {
@@ -88,6 +104,10 @@ final class NotesViewModel: ObservableObject {
         activeAlert = .deleteMemo
     }
 
+    func requestDeleteAllMemos() {
+        activeAlert = .deleteAllMemos
+    }
+
     func deleteCurrent() {
         activeAlert = nil
 
@@ -103,6 +123,18 @@ final class NotesViewModel: ObservableObject {
         }
     }
 
+    func deleteAllMemos() {
+        activeAlert = nil
+        notes = []
+
+        do {
+            try store.save([])
+            prepareEmptyComposer()
+        } catch {
+            activeAlert = .error(message: error.localizedDescription)
+        }
+    }
+
     func saveCurrent() {
         guard canSave else {
             return
@@ -111,15 +143,13 @@ final class NotesViewModel: ObservableObject {
         let now = Date()
 
         if let memoID = draft.memoID, let index = notes.firstIndex(where: { $0.id == memoID }) {
-            notes[index].content = draft.content
-            notes[index].color = draft.color
+            notes[index].styledText = draft.styledText
             notes[index].updatedAt = now
         } else {
             notes.append(
                 MemoItem(
                     id: UUID(),
-                    content: draft.content,
-                    color: draft.color,
+                    styledText: draft.styledText,
                     createdAt: draft.createdAt ?? now,
                     updatedAt: now
                 )
@@ -133,7 +163,16 @@ final class NotesViewModel: ObservableObject {
     }
 
     func selectColor(_ color: MemoColor) {
-        draft.color = color
+        draft.activeColor = color
+        colorSelectionRequest = MemoColorSelectionRequest(color: color)
+    }
+
+    func updateStyledText(_ styledText: StyledText) {
+        draft.styledText = styledText
+    }
+
+    func updateActiveColor(_ color: MemoColor) {
+        draft.activeColor = color
     }
 
     func clearAlert() {
@@ -143,11 +182,19 @@ final class NotesViewModel: ObservableObject {
     private func loadNotes() {
         do {
             notes = Self.sorted(try store.load())
-            route = notes.isEmpty ? .emptyComposer : .memoList
+            openDefaultComposer()
         } catch {
             notes = []
             route = .emptyComposer
             activeAlert = .error(message: error.localizedDescription)
+        }
+    }
+
+    private func openDefaultComposer() {
+        if notes.isEmpty {
+            prepareEmptyComposer()
+        } else {
+            startNewMemo()
         }
     }
 

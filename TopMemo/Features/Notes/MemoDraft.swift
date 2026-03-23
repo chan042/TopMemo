@@ -2,27 +2,31 @@ import Foundation
 
 struct MemoDraft: Equatable {
     var memoID: UUID?
-    var content: String
-    var color: MemoColor
+    var styledText: StyledText
+    var activeColor: MemoColor
     var createdAt: Date?
 
     static let empty = MemoDraft(
         memoID: nil,
-        content: "",
-        color: .black,
+        styledText: .empty,
+        activeColor: .black,
         createdAt: nil
     )
 
     static func from(_ memo: MemoItem) -> MemoDraft {
         MemoDraft(
             memoID: memo.id,
-            content: memo.content,
-            color: memo.color,
+            styledText: memo.styledText,
+            activeColor: memo.preferredColor,
             createdAt: memo.createdAt
         )
     }
 
+    var content: String {
+        styledText.plainText
+    }
+
     var trimmedContent: String {
-        content.trimmingCharacters(in: .whitespacesAndNewlines)
+        styledText.trimmedPlainText
     }
 }

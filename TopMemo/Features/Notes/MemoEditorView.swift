@@ -28,17 +28,11 @@ struct MemoEditorView: View {
 
             Spacer()
 
-            Button("삭제") {
-                viewModel.requestDelete()
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
-
             Button("저장") {
                 viewModel.saveCurrent()
             }
             .buttonStyle(.plain)
-            .foregroundStyle(viewModel.canSave ? Color.accentColor : AppTheme.subduedText)
+            .foregroundStyle(viewModel.canSave ? AppTheme.actionYellow : AppTheme.subduedText)
             .disabled(!viewModel.canSave)
         }
         .font(.system(size: 13, weight: .semibold))
@@ -48,11 +42,15 @@ struct MemoEditorView: View {
 
     private var editorBody: some View {
         MemoTextEditor(
-            text: Binding(
-                get: { viewModel.draft.content },
-                set: { viewModel.draft.content = $0 }
+            styledText: Binding(
+                get: { viewModel.draft.styledText },
+                set: { viewModel.updateStyledText($0) }
             ),
-            textColor: viewModel.draft.color.nsColor,
+            activeColor: Binding(
+                get: { viewModel.draft.activeColor },
+                set: { viewModel.updateActiveColor($0) }
+            ),
+            colorSelectionRequest: viewModel.colorSelectionRequest,
             focusToken: viewModel.focusToken,
             onSave: {
                 viewModel.saveCurrent()
@@ -83,7 +81,7 @@ struct MemoEditorView: View {
                             .fill(memoColor.color)
                             .frame(width: 22, height: 22)
 
-                        if viewModel.draft.color == memoColor {
+                        if viewModel.draft.activeColor == memoColor {
                             Circle()
                                 .stroke(Color.primary.opacity(0.2), lineWidth: 4)
                                 .frame(width: 30, height: 30)

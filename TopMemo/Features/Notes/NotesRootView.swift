@@ -13,6 +13,8 @@ struct NotesRootView: View {
                 switch viewModel.route {
                 case .memoList:
                     NotesListView(viewModel: viewModel)
+                case .settings:
+                    NotesSettingsView(viewModel: viewModel)
                 case .emptyComposer, .editor:
                     MemoEditorView(viewModel: viewModel, closePopover: closePopover)
                 }
@@ -46,6 +48,17 @@ struct NotesRootView: View {
                 ),
                 primaryButton: .destructive(Text("삭제")) {
                     viewModel.deleteCurrent()
+                },
+                secondaryButton: .cancel {
+                    viewModel.clearAlert()
+                }
+            )
+        case .deleteAllMemos:
+            return Alert(
+                title: Text("모든 메모를 삭제할까요?"),
+                message: Text("저장된 메모가 모두 제거되며 되돌릴 수 없습니다."),
+                primaryButton: .destructive(Text("모두 삭제")) {
+                    viewModel.deleteAllMemos()
                 },
                 secondaryButton: .cancel {
                     viewModel.clearAlert()

@@ -1,7 +1,11 @@
+import AppKit
 import SwiftUI
 
 struct NotesListView: View {
     @ObservedObject var viewModel: NotesViewModel
+    @State private var copiedMemoID: UUID?
+    @State private var isShowingCopyFeedback = false
+    @State private var copyFeedbackToken = UUID()
 
     var body: some View {
         VStack(spacing: 12) {
@@ -11,17 +15,21 @@ struct NotesListView: View {
                 emptyState
             } else {
                 ScrollView {
-                    LazyVStack(spacing: 10) {
+                    LazyVStack(spacing: 8) {
                         ForEach(viewModel.notes) { memo in
-                            Button {
-                                viewModel.edit(memo)
-                            } label: {
-                                MemoCardView(memo: memo)
-                            }
-                            .buttonStyle(.plain)
+                            MemoRowView(
+                                memo: memo,
+                                isCopied: copiedMemoID == memo.id,
+                                onOpen: {
+                                    viewModel.edit(memo)
+                                },
+                                onCopy: {
+                                    copyMemo(memo)
+                                }
+                            )
                         }
                     }
-                    .padding(.vertical, 2)
+                    .padding(.top, 2)
                 }
                 .scrollIndicators(.never)
             }
@@ -35,7 +43,7 @@ struct NotesListView: View {
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("TopMemo")
-                    .font(.system(size: 20, weight: .semibold, design: .rounded))
+                    .font(.system(size: 20, weight: .bold, design: .serif))
 
                 Text("\(viewModel.notes.count)개의 메모")
                     .font(.system(size: 12, weight: .medium))
@@ -43,6 +51,17 @@ struct NotesListView: View {
             }
 
             Spacer()
+
+            Button {
+                viewModel.openSettings()
+            } label: {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 14, weight: .semibold))
+                    .frame(width: 28, height: 28)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(AppTheme.subduedText)
+            .help("설정")
         }
         .padding(.horizontal, 4)
         .padding(.top, 4)
@@ -68,10 +87,12 @@ struct NotesListView: View {
             viewModel.startNewMemo()
         } label: {
             HStack(spacing: 8) {
-                Image(systemName: "plus")
-                    .font(.system(size: 13, weight: .bold))
+                if !isShowingCopyFeedback {
+                    Image(systemName: "plus")
+                        .font(.system(size: 13, weight: .bold))
+                }
 
-                Text("새 메모")
+                Text(isShowingCopyFeedback ? "복사됨" : "새 메모")
                     .font(.system(size: 14, weight: .semibold))
             }
             .frame(maxWidth: .infinity)
@@ -84,44 +105,76 @@ struct NotesListView: View {
         .buttonStyle(.plain)
         .keyboardShortcut("n", modifiers: [.command])
     }
+
+    private func copyMemo(_ memo: MemoItem) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(memo.content, forType: .string)
+
+        let token = UUID()
+        copyFeedbackToken = token
+
+        withAnimation(.spring(response: 0.2, dampingFraction: 0.45)) {
+            copiedMemoID = memo.id
+            isShowingCopyFeedback = true
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            guard copyFeedbackToken == token else {
+                return
+            }
+
+            withAnimation(.easeInOut(duration: 0.18)) {
+                copiedMemoID = nil
+                isShowingCopyFeedback = false
+            }
+        }
+    }
 }
 
-private struct MemoCardView: View {
+private struct MemoRowView: View {
     let memo: MemoItem
+    let isCopied: Bool
+    let onOpen: () -> Void
+    let onCopy: () -> Void
 
     private var previewColor: Color {
-        memo.color == .black ? .primary : memo.color.color
+        memo.preferredColor == .black ? .primary : memo.preferredColor.color
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(memo.color.color)
-                    .frame(width: 8, height: 8)
-
-                Text(DateFormatting.noteTimestamp(memo.updatedAt))
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(AppTheme.subduedText)
-
-                Spacer()
+        HStack(alignment: .center, spacing: 10) {
+            Button(action: onOpen) {
+                Text(memo.previewText)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(previewColor)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .lineLimit(3)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
 
-            Text(memo.previewText)
-                .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(previewColor)
-                .multilineTextAlignment(.leading)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .lineLimit(3)
+            Button(action: onCopy) {
+                Image(systemName: "doc.on.doc")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(AppTheme.subduedText.opacity(0.55))
+                    .frame(width: 24, height: 24)
+                    .contentShape(Rectangle())
+                    .scaleEffect(isCopied ? 1.32 : 1.0)
+                    .animation(.spring(response: 0.2, dampingFraction: 0.45), value: isCopied)
+            }
+            .buttonStyle(.plain)
+            .help("전체 메모 복사")
         }
-        .padding(14)
+        .padding(.vertical, 8)
+        .padding(.horizontal, 12)
         .background(
-            RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
-                .fill(AppTheme.elevatedBackground)
+            RoundedRectangle(cornerRadius: AppTheme.memoRowCornerRadius)
+                .fill(AppTheme.background.opacity(0.001))
         )
         .overlay {
-            RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
-                .stroke(AppTheme.subtleBorder, lineWidth: 1)
+            RoundedRectangle(cornerRadius: AppTheme.memoRowCornerRadius)
+                .stroke(AppTheme.memoRowBorder, lineWidth: 1.2)
         }
     }
 }

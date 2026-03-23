@@ -33,6 +33,17 @@ final class PopoverCoordinator: NSObject, NSPopoverDelegate {
         }
     }
 
+    func showNewMemoOnLaunch() {
+        guard !popover.isShown, let button = statusBarController.button else {
+            return
+        }
+
+        viewModel.startNewMemo()
+        NSApp.activate(ignoringOtherApps: true)
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        startEventMonitor()
+    }
+
     func popoverDidClose(_ notification: Notification) {
         stopEventMonitor()
     }
